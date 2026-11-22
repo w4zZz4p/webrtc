@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Durius</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- MENIU -->
+  <section id="scr-menu" class="screen">
+    <h1>🃏 Durius</h1>
+    <p class="sub">Kortų žaidimas 2–6 žaidėjams per WebRTC</p>
+    <label>Tavo vardas<input id="name" maxlength="16" placeholder="Vardas"></label>
+    <div id="menu-host"><button id="btn-host" class="big">Sukurti kambarį</button></div>
+    <div id="menu-join" hidden>
+      <p>Prisijungti prie kambario <b id="join-code"></b></p>
+      <button id="btn-join" class="big">Prisijungti</button>
+    </div>
+    <details class="rules"><summary>Taisyklės</summary>
+      <p>36 kortų malka (6–A). Kiekvienas gauna po 6 kortas, apatinė malkos korta nustato kozirį.
+      Puolėjas meta kortą, besiginantis turi ją sumušti aukštesne tos pačios spalvos korta arba koziriu.
+      Kiti žaidėjai gali primesti tokio pat rango kortų, kokios jau yra ant stalo (iki 6 ir ne daugiau, nei turi besiginantis).
+      Jei besiginantis nesumuša – ima visas kortas. Jei sumuša viską – „bita“, ir jis puola toliau.
+      Kas paskutinis lieka su kortomis – <b>durius</b>.</p>
+    </details>
+  </section>
+
+  <!-- LAUKIMO KAMBARYS -->
+  <section id="scr-lobby" class="screen" hidden>
+    <h2>Kambarys <span id="room-code"></span></h2>
+    <div id="host-share" hidden>
+      <div id="qr"></div>
+      <p class="sub">Nuskenuok QR kodą telefonu, kad prisijungtum</p>
+      <div class="row"><input id="share-url" readonly><button id="btn-copy">Kopijuoti</button></div>
+    </div>
+    <h3>Žaidėjai</h3>
+    <ul id="lobby-players"></ul>
+    <button id="btn-start" class="big" hidden>Pradėti žaidimą</button>
+    <p id="lobby-wait" class="sub" hidden>Laukiama, kol šeimininkas pradės…</p>
+  </section>
+
+  <!-- ŽAIDIMAS -->
+  <section id="scr-game" class="screen" hidden>
+    <div id="opponents"></div>
+    <div id="middle">
+      <div id="deck-area">
+        <div id="deck"></div>
+        <div id="deck-info"></div>
+      </div>
+      <div id="table"></div>
+    </div>
+    <div id="status"></div>
+    <div id="actions">
+      <button id="btn-take" hidden>Imu</button>
+      <button id="btn-pass" hidden>Bita</button>
+      <button id="btn-again" hidden>Nauja partija</button>
+      <button id="btn-qr" class="ghost" hidden>QR</button>
+    </div>
+    <div id="me-bar"></div>
+    <div id="hand"></div>
+  </section>
+
+  <div id="modal" hidden><div class="box"><div id="modal-qr"></div><p id="modal-url" class="sub"></p><button id="modal-close">Uždaryti</button></div></div>
+  <div id="toast"></div>
+  <div id="net" class="sub"></div>
+</div>
+<script src="vendor/peerjs.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="game.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
