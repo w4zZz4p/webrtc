@@ -20,3 +20,8 @@ Kambario šeimininko naršyklė laiko žaidimo būseną – jos neuždaryk parti
 - **Tas pats WiFi:** naršyklės slepia vietinius IP adresus, o daugelis maršrutizatorių neleidžia telefonams susijungti per išorinį adresą. Mygtukas „WiFi režimas“ paprašo mikrofono leidimo (srautas iškart sustabdomas) – tada naršyklė atskleidžia vietinį IP ir ryšys užmezgamas tiesiogiai. Taip pat pridėti atsarginiai TURN serveriai.
 - Signalizacijai naudojamas nemokamas PeerJS debesies serveris; ryšys tarp žaidėjų – tiesioginis WebRTC (STUN). Kai kuriuose griežtuose tinkluose (pvz. mobilusis internetas su simetriniu NAT) ryšys gali nepavykti.
 - Lokaliam testavimui: `?peerhost=127.0.0.1&peerport=9000` su savo `peerjs` serveriu.
+
+## Versijos
+- Versija nurodyta `version.js` (SemVer), pakeitimai aprašomi `CHANGELOG.md`.
+- Diegimo metu prie versijos automatiškai pridedamas commit'o kodas ir data, o failams – `?v=` parametras, kad naršyklės nekrautų senų failų.
+- Versija rodoma viršuje kairėje ir pradžios ekrano apačioje. Skirtingų versijų žaidėjai prisijungti negali – žaidimas paprašo perkrauti puslapį.

@@ -21,7 +21,13 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
-      - run: mkdir _site && cp -r index.html style.css game.js app.js vendor .nojekyll _site/
+      - name: Build site with version info
+        run: |
+          mkdir _site && cp -r index.html style.css version.js game.js app.js vendor .nojekyll _site/
+          SHA="${GITHUB_SHA::7}"
+          sed -i "s/build: 'dev'/build: '$SHA'/; s/date: ''/date: '$(date -u +%Y-%m-%d)'/" _site/version.js
+          sed -i -E "s/(src=\"[^\"]+\.js)\"/\1?v=$SHA\"/g; s/(href=\"style\.css)\"/\1?v=$SHA\"/" _site/index.html
+          cat _site/version.js; grep -E 'src=|style.css' _site/index.html
       - uses: actions/upload-pages-artifact@v3
       - id: deployment
         uses: actions/deploy-pages@v4

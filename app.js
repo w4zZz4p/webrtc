@@ -2,6 +2,11 @@
   const $ = id => document.getElementById(id);
   const D = window.Durak;
   const PREFIX = 'durius-v1-';
+  const AV = window.APP_VERSION || { version: '?', build: 'dev', date: '' };
+  const VER = AV.version + (AV.build && AV.build !== 'dev' ? '+' + AV.build : '');
+  document.getElementById('ver').textContent = 'v' + AV.version;
+  document.getElementById('ver').title = 'Versija ' + VER + (AV.date ? ' · ' + AV.date : '');
+  document.getElementById('ver-menu').textContent = 'Durnius v' + AV.version + (AV.build !== 'dev' ? ' · ' + AV.build : ' · dev') + (AV.date ? ' · ' + AV.date : '');
   const store = {
     get(k, s) { try { return (s ? sessionStorage : localStorage).getItem(k); } catch (e) { return null; } },
     set(k, v, s) { try { (s ? sessionStorage : localStorage).setItem(k, v); } catch (e) {} },
@@ -111,6 +116,10 @@
   function hostOnMsg(conn, msg) {
     if (!msg || typeof msg !== 'object') return;
     if (msg.t === 'hello') {
+      if (msg.ver !== VER) {
+        conn.send({ t: 'err', fatal: true, m: `Skirtingos žaidimo versijos: kambario v${VER}, tavo v${msg.ver || 'sena'}. Perkrauk puslapį abiejuose įrenginiuose.` });
+        setTimeout(() => conn.close(), 800); return;
+      }
       const name = String(msg.name || 'Žaidėjas').slice(0, 16);
       let p = lobby.find(p => p.pid === msg.pid);
       if (p) {
@@ -188,7 +197,7 @@
       }, 12000);
       c.on('open', () => {
         clearTimeout(timer); c.opened = true;
-        net('Prisijungta'); c.send({ t: 'hello', pid: myPid, name });
+        net('Prisijungta'); c.send({ t: 'hello', pid: myPid, name, ver: VER });
       });
       c.on('data', clientOnMsg);
       c.on('close', () => {
@@ -215,7 +224,7 @@
       view = null; $('room-code').textContent = msg.room;
       lobby = msg.players; show('scr-lobby'); $('lobby-wait').hidden = false; renderLobby();
     } else if (msg.t === 'state') onState(msg.v);
-    else if (msg.t === 'err') toast(msg.m);
+    else if (msg.t === 'err') { if (msg.fatal) { hostConn.stale = true; failJoin(msg.m); $('join-help').hidden = false; $('join-help').textContent = msg.m; } else toast(msg.m); }
   }
   function send(a) {
     if (isHost) hostAction(myPid, a, null);
