@@ -112,6 +112,7 @@
 
   function endBout(st, beaten) {
     const def = st.players[st.defender];
+    st.lastEnd = { seq: (st.lastEnd ? st.lastEnd.seq : 0) + 1, beaten, def: st.defender };
     if (beaten) {
       st.discard += st.table.length * 2;
       st.msg = 'Bita! ' + def.name + ' atsigynė.';
@@ -160,7 +161,7 @@
       case 'attack': {
         if (!canAttack(st, pi, a.card)) return 'Šios kortos mesti negalima';
         const c = takeCard(p, a.card); if (!c) return 'Neturi tokios kortos';
-        st.table.push({ a: c, d: null });
+        st.table.push({ a: c, d: null, by: pi });
         st.passed = {};
         st.msg = p.name + ' meta ' + label(c);
         break;
@@ -211,6 +212,7 @@
       deck: st.deck.length, discard: st.discard,
       attacker: st.attacker, defender: st.defender, taking: st.taking,
       boutLimit: st.boutLimit, over: st.over, loser: st.loser, msg: st.msg,
+      lastEnd: st.lastEnd || null, round: st.round,
     };
   }
 

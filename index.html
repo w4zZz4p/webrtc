@@ -11,7 +11,7 @@
 <div id="app">
   <!-- MENIU -->
   <section id="scr-menu" class="screen">
-    <h1>🃏 Durius</h1>
+    <div class="logo"><div class="fan"><span>A<i>♠</i></span><span class="r">K<i>♥</i></span><span>Q<i>♣</i></span><span class="r">J<i>♦</i></span></div><h1>Durius</h1></div>
     <p class="sub">Kortų žaidimas 2–6 žaidėjams per WebRTC</p>
     <label>Tavo vardas<input id="name" maxlength="16" placeholder="Vardas"></label>
     <div id="menu-host"><button id="btn-host" class="big">Sukurti kambarį</button></div>
@@ -45,24 +45,29 @@
   <!-- ŽAIDIMAS -->
   <section id="scr-game" class="screen" hidden>
     <div id="opponents"></div>
-    <div id="middle">
+    <div id="felt">
       <div id="deck-area">
         <div id="deck"></div>
         <div id="deck-info"></div>
       </div>
       <div id="table"></div>
+      <div id="discard" title="Bita"></div>
     </div>
     <div id="status"></div>
     <div id="actions">
-      <button id="btn-take" hidden>Imu</button>
-      <button id="btn-pass" hidden>Bita</button>
-      <button id="btn-again" hidden>Nauja partija</button>
-      <button id="btn-qr" class="ghost" hidden>QR</button>
+      <button id="btn-take" class="act take" hidden>✋ Imu</button>
+      <button id="btn-pass" class="act pass" hidden>Bita</button>
+      <button id="btn-qr" class="ghost small" hidden>QR</button>
     </div>
     <div id="me-bar"></div>
     <div id="hand"></div>
   </section>
 
+  <div id="over" hidden><div class="box"><div id="over-emoji"></div><div id="over-title"></div><div id="over-sub" class="sub"></div><button id="btn-again" class="big" hidden>🔄 Nauja partija</button><button id="over-close" class="ghost">Žiūrėti stalą</button></div></div>
+  <div id="banner"></div>
+  <div id="glow"></div>
+  <canvas id="fx"></canvas>
+  <button id="btn-sound" class="ghost small" title="Garsas">🔊</button>
   <div id="modal" hidden><div class="box"><div id="modal-qr"></div><p id="modal-url" class="sub"></p><button id="modal-close">Uždaryti</button></div></div>
   <div id="toast"></div>
   <div id="net" class="sub"></div>
