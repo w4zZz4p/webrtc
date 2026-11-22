@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Durius</title>
+<title>Durnius</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -12,20 +12,22 @@
   <div id="topbar"><span id="net" class="sub"></span><button id="btn-sound" class="ghost small" title="Garsas">🔊</button></div>
   <!-- MENIU -->
   <section id="scr-menu" class="screen">
-    <div class="logo"><div class="fan"><span>A<i>♠</i></span><span class="r">K<i>♥</i></span><span>Q<i>♣</i></span><span class="r">J<i>♦</i></span></div><h1>Durius</h1></div>
+    <div class="logo"><div class="fan"><span>A<i>♠</i></span><span class="r">K<i>♥</i></span><span>Q<i>♣</i></span><span class="r">J<i>♦</i></span></div><h1>Durnius</h1></div>
     <p class="sub">Kortų žaidimas 2–6 žaidėjams per WebRTC</p>
     <label>Tavo vardas<input id="name" maxlength="16" placeholder="Vardas"></label>
     <div id="menu-host"><button id="btn-host" class="big">Sukurti kambarį</button></div>
     <div id="menu-join" hidden>
       <p>Prisijungti prie kambario <b id="join-code"></b></p>
       <button id="btn-join" class="big">Prisijungti</button>
+      <p id="join-help" class="sub warn" hidden>Nepavyko užmegzti ryšio. Dažniausiai taip būna, kai visi prisijungę prie to paties WiFi. Įjunk WiFi režimą (paspausk žemiau ir leisk mikrofoną – jis nebus naudojamas) ir paprašyk kambario kūrėjo padaryti tą patį, arba junkis per mobilius duomenis.</p>
+      <button class="btn-wifi ghost small"></button>
     </div>
     <details class="rules"><summary>Taisyklės</summary>
       <p>36 kortų malka (6–A). Kiekvienas gauna po 6 kortas, apatinė malkos korta nustato kozirį.
       Puolėjas meta kortą, besiginantis turi ją sumušti aukštesne tos pačios spalvos korta arba koziriu.
       Kiti žaidėjai gali primesti tokio pat rango kortų, kokios jau yra ant stalo (iki 6 ir ne daugiau, nei turi besiginantis).
-      Jei besiginantis nesumuša – ima visas kortas. Jei sumuša viską – „bita“, ir jis puola toliau.
-      Kas paskutinis lieka su kortomis – <b>durius</b>.</p>
+      Jei besiginantis nesumuša – ima visas kortas. Jei sumuša viską – „mušta“, ir jis puola toliau.
+      Kas paskutinis lieka su kortomis – <b>durnius</b>.</p>
     </details>
   </section>
 
@@ -36,6 +38,8 @@
       <div id="qr"></div>
       <p class="sub">Nuskenuok QR kodą telefonu, kad prisijungtum</p>
       <div class="row"><input id="share-url" readonly><button id="btn-copy">Kopijuoti</button></div>
+      <button class="btn-wifi ghost small"></button>
+      <p class="sub">Jei žaidėjai tame pačiame WiFi negali prisijungti – įjunk WiFi režimą. Naršyklė paprašys mikrofono leidimo: jis reikalingas tik tam, kad būtų matomas vietinis tinklo adresas, garsas nėra įrašomas.</p>
     </div>
     <h3>Žaidėjai</h3>
     <ul id="lobby-players"></ul>
@@ -52,12 +56,12 @@
         <div id="deck-info"></div>
       </div>
       <div id="table"></div>
-      <div id="discard" title="Bita"></div>
+      <div id="discard" title="Mušta"></div>
     </div>
     <div id="status"></div>
     <div id="actions">
       <button id="btn-take" class="act take" hidden>✋ Imu</button>
-      <button id="btn-pass" class="act pass" hidden>Bita</button>
+      <button id="btn-pass" class="act pass" hidden>Mušta</button>
       <button id="btn-qr" class="ghost small" hidden>QR</button>
     </div>
     <div id="me-bar"></div>

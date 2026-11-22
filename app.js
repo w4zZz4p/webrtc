@@ -40,14 +40,48 @@
     const q = qrcode(0, 'M'); q.addData(text); q.make();
     return q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   }
-  const peerOpts = { debug: 1 };
+  const peerOpts = {
+    debug: 1,
+    config: {
+      iceServers: [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+        { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+        { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+      ],
+    },
+  };
   if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost'), port: +params.get('peerport') || 9000, path: '/', secure: false });
+
+  // ---------------- SAME-WIFI MODE ----------------
+  // Browsers hide local IP addresses (mDNS) unless the page has microphone permission.
+  // On many home routers phones on the same Wi-Fi can then only reach each other via a relay.
+  // Granting mic permission once (stream stopped immediately) exposes local IPs so a direct LAN connection works.
+  let wifiOn = store.get('durius-wifi') === '1';
+  async function enableWifi(silent) {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach(t => t.stop());
+      wifiOn = true; store.set('durius-wifi', '1'); updWifi();
+      if (!silent) toast('WiFi režimas įjungtas ✔');
+      return true;
+    } catch (e) {
+      if (!silent) toast('Leidimas nesuteiktas – WiFi režimas neįjungtas');
+      return false;
+    }
+  }
+  function updWifi() {
+    document.querySelectorAll('.btn-wifi').forEach(b => { b.textContent = wifiOn ? '📶 WiFi režimas įjungtas' : '📶 Tame pačiame WiFi? Įjunk WiFi režimą'; b.disabled = wifiOn; });
+  }
+  document.querySelectorAll('.btn-wifi').forEach(b => b.onclick = () => enableWifi(false));
+  updWifi();
+  const wifiReady = () => wifiOn ? enableWifi(true) : Promise.resolve();
 
   // ---------------- HOST ----------------
   function startHost(name) {
     isHost = true;
     room = Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
     net('Jungiamasi…', true);
+    wifiReady().then(() => {
     peer = new Peer(PREFIX + room, peerOpts);
     peer.on('open', () => {
       net('Kambarys atidarytas');
@@ -70,6 +104,7 @@
         const p = lobby.find(p => p.conn === conn);
         if (p) { p.online = false; p.conn = null; toast(p.name + ' atsijungė'); broadcast(); }
       });
+    });
     });
   }
 
@@ -137,19 +172,31 @@
     net('Jungiamasi…', true);
     $('btn-join').disabled = true;
     if (peer && !peer.destroyed) peer.destroy();
+    wifiReady().then(() => clientPeer(name));
+  }
+  function clientPeer(name) {
     peer = new Peer(peerOpts);
     let tries = 0;
     const connect = () => {
-      hostConn = peer.connect(PREFIX + room, { reliable: true });
+      const c = hostConn = peer.connect(PREFIX + room, { reliable: true });
       const timer = setTimeout(() => {
-        if (!hostConn.open) { tries++; if (tries < 3) { try { hostConn.close(); } catch (e) {} connect(); } else failJoin('Nepavyko prisijungti prie kambario'); }
-      }, 8000);
-      hostConn.on('open', () => {
-        clearTimeout(timer);
-        net('Prisijungta'); hostConn.send({ t: 'hello', pid: myPid, name });
+        if (c.open || c.stale) return;
+        c.stale = true; try { c.close(); } catch (e) {}
+        tries++;
+        if (tries < 3) connect();
+        else failJoin('Nepavyko prisijungti. Jei esate tame pačiame WiFi – įjunk WiFi režimą abiejuose telefonuose arba junkis per mobilius duomenis', true);
+      }, 12000);
+      c.on('open', () => {
+        clearTimeout(timer); c.opened = true;
+        net('Prisijungta'); c.send({ t: 'hello', pid: myPid, name });
       });
-      hostConn.on('data', clientOnMsg);
-      hostConn.on('close', () => { net('Ryšys nutrūko'); toast('Ryšys su šeimininku nutrūko'); failJoin('Ryšys nutrūko – bandyk prisijungti iš naujo'); });
+      c.on('data', clientOnMsg);
+      c.on('close', () => {
+        if (c.stale) return;
+        clearTimeout(timer); c.stale = true;
+        if (c.opened) { net('Ryšys nutrūko'); failJoin('Ryšys su šeimininku nutrūko – bandyk prisijungti iš naujo'); }
+        else failJoin('Nepavyko užmegzti ryšio', true);
+      });
     };
     peer.on('open', connect);
     peer.on('error', e => {
@@ -157,8 +204,9 @@
       else { net('Klaida: ' + e.type); toast('Tinklo klaida: ' + e.type); }
     });
   }
-  function failJoin(m) {
-    toast(m); $('btn-join').disabled = false; $('btn-join').textContent = 'Prisijungti iš naujo';
+  function failJoin(m, conn) {
+    toast(m);
+    $('join-help').hidden = !conn; $('btn-join').disabled = false; $('btn-join').textContent = 'Prisijungti iš naujo';
     show('scr-menu'); $('menu-join').hidden = false;
   }
   function clientOnMsg(msg) {
@@ -388,8 +436,8 @@
     const e = $('over-emoji');
     e.textContent = v.loser === null ? '🤝' : lose ? '🤡' : '🏆';
     e.className = lose ? 'lose' : 'win';
-    $('over-title').textContent = v.loser === null ? 'Lygiosios!' : lose ? 'Tu – DURIUS!' : 'Laimėjai!';
-    $('over-sub').textContent = v.loser === null ? 'Niekas neliko durium' : lose ? 'Kitą kartą pasiseks…' : 'Durius: ' + v.players[v.loser].name;
+    $('over-title').textContent = v.loser === null ? 'Lygiosios!' : lose ? 'Tu – DURNIUS!' : 'Laimėjai!';
+    $('over-sub').textContent = v.loser === null ? 'Niekas neliko durniumi' : lose ? 'Kitą kartą pasiseks…' : 'Durnius: ' + v.players[v.loser].name;
     $('btn-again').hidden = !isHost;
     $('over').hidden = false;
     if (lose) { sfx('lose'); vibrate([300, 100, 300, 100, 500]); } else { sfx('win'); confetti(); }
@@ -440,7 +488,7 @@
       const i = (me + k) % n, p = v.players[i];
       const cls = v.over ? '' : i === v.attacker ? 'att' : i === v.defender ? 'def' : '';
       let badges = '', role = '';
-      if (v.over && v.loser === i) { badges += '<span class="badge b-dur">DURIUS</span>'; role = '🤡'; }
+      if (v.over && v.loser === i) { badges += '<span class="badge b-dur">DURNIUS</span>'; role = '🤡'; }
       else if (p.out) { badges += '<span class="badge b-out">išėjo</span>'; role = '🏆'; }
       else if (i === v.attacker) { badges += '<span class="badge b-att">puola</span>'; role = '⚔️'; }
       else if (i === v.defender) { badges += `<span class="badge b-def">${v.taking ? 'ima' : 'ginasi'}</span>`; role = v.taking ? '✋' : '🛡️'; }
@@ -462,7 +510,7 @@
     $('deck-info').innerHTML = `<span class="ts" style="color:${red ? 'var(--red)' : '#111'}">${D.SL[v.trumpSuit]}</span><br>Malka: <b>${v.deck}</b>`;
     const dn = Math.min(Math.ceil(v.discard / 4), 8);
     $('discard').innerHTML = Array.from({ length: dn }, (_, j) => `<div class="card back" style="--r:${(j * 37) % 50 - 25}deg;top:${j * 2}px"></div>`).join('') +
-      (v.discard ? `<div class="sub" style="position:absolute;top:66px;width:44px;font-size:11px">bita ${v.discard}</div>` : '');
+      (v.discard ? `<div class="sub" style="position:absolute;top:66px;width:44px;font-size:11px">mušta ${v.discard}</div>` : '');
 
     // table
     const iDefend = me === v.defender && !v.taking && !v.over;
@@ -490,7 +538,7 @@
     }
     if ($('status').dataset.s !== s) { $('status').dataset.s = s; $('status').innerHTML = s ? `<span class="msg">${esc(s)}</span>` : ''; }
     let role = '', rc = '';
-    if (v.over && v.loser === me) role = 'DURIUS 🤡';
+    if (v.over && v.loser === me) role = 'DURNIUS 🤡';
     else if (meP.out) role = 'išėjai 🏆';
     else if (me === v.attacker) { role = '⚔️ puoli'; rc = 'att'; }
     else if (me === v.defender) { role = v.taking ? '✋ imi' : '🛡️ giniesi'; rc = 'def'; }
@@ -502,7 +550,7 @@
       (v.taking || unbeaten === 0) && !meP.passed;
     setBtn('btn-take', showTake, showTake && !v.hand.some(c => v.table.some((t, idx) => D.canDefend(st, me, idx, c))));
     setBtn('btn-pass', canPass, canPass && !v.hand.some(c => D.canAttack(st, me, c)));
-    $('btn-pass').textContent = v.taking ? '👌 Daugiau nemetu' : '✅ Bita';
+    $('btn-pass').textContent = v.taking ? '👌 Daugiau nemetu' : '✅ Mušta';
     $('btn-qr').hidden = !isHost;
   }
   function setBtn(id, vis, attn) {

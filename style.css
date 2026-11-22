@@ -179,3 +179,6 @@ body.my-turn #glow{opacity:1;animation:glow 1.6s ease-in-out infinite}
 @keyframes bounce{50%{transform:translateY(-14px) scale(1.06)}}
 @media (min-width:600px){:root{--cw:72px;--ch:104px}.card .pip{font-size:38px}.card .face{font-size:28px}.card .ace{font-size:50px}#deck{width:110px}#deck-area{width:110px}#deck .trump{left:36px}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
+.warn{color:#ffd180;background:rgba(0,0,0,.25);padding:8px 12px;border-radius:10px;margin-top:8px}
+.btn-wifi{align-self:center;margin-top:8px}
+#menu-join{display:flex;flex-direction:column}

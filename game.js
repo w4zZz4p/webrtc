@@ -1,4 +1,4 @@
-// Durak ("Durius") game logic — pure, host-authoritative.
+// Durak ("Durnius") game logic — pure, host-authoritative.
 (function (exp) {
   const SUITS = ['S', 'H', 'D', 'C'];
   const RANKS = [6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -115,7 +115,7 @@
     st.lastEnd = { seq: (st.lastEnd ? st.lastEnd.seq : 0) + 1, beaten, def: st.defender };
     if (beaten) {
       st.discard += st.table.length * 2;
-      st.msg = 'Bita! ' + def.name + ' atsigynė.';
+      st.msg = 'Mušta! ' + def.name + ' atsigynė.';
     } else {
       st.table.forEach(t => { def.hand.push(t.a); if (t.d) def.hand.push(t.d); });
       st.msg = def.name + ' paėmė kortas.';
@@ -140,8 +140,8 @@
       st.over = true;
       st.loser = active.length ? active[0] : null;
       st.msg = active.length
-        ? st.players[active[0]].name + ' — DURIUS! 🃏'
-        : 'Lygiosios — niekas neliko durium!';
+        ? st.players[active[0]].name + ' — DURNIUS! 🃏'
+        : 'Lygiosios — niekas neliko durniumi!';
       return;
     }
     let next;
@@ -185,7 +185,7 @@
         if (pi === st.defender || st.table.length === 0) return 'Dabar praleisti negalima';
         if (!st.taking && unbeaten(st) > 0) return 'Palauk, kol atsigins';
         st.passed[pi] = true;
-        st.msg = p.name + (st.taking ? ': daugiau nemetu' : ': bita');
+        st.msg = p.name + (st.taking ? ': daugiau nemetu' : ': mušta');
         break;
       }
       default: return 'Nežinomas veiksmas';
