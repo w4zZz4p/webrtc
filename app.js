@@ -52,8 +52,9 @@
     config: {
       iceServers: [
         { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
-        { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
-        { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+        { label: 'freeturn.net', urls: ['turn:freeturn.net:3478', 'turn:freeturn.net:3478?transport=tcp', 'turns:freeturn.tel:5349'], username: 'free', credential: 'free' },
+        { label: 'PeerJS', urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+        { label: 'Open Relay', urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
       ],
     },
   };
@@ -93,6 +94,14 @@
         else dlog('Metered TURN: HTTP ' + r.status);
       } catch (e) { dlog('Metered TURN: ' + e.message); }
     }
+    // Elixir WebRTC "Rel" public test TURN: short-lived credentials, no signup
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch('https://turn.elixir-webrtc.org/?service=turn&username=durnius' + myPid, { method: 'POST', signal: ctl.signal });
+      clearTimeout(t);
+      if (r.ok) { const j = await r.json(); list.push({ label: 'Elixir Rel', urls: j.uris, username: j.username, credential: j.password }); }
+      else dlog('Elixir Rel TURN: HTTP ' + r.status);
+    } catch (e) { dlog('Elixir Rel TURN: ' + (e.name === 'AbortError' ? 'laikas baigėsi' : e.message)); }
     extraIce = list;
     if (list.length) peerOpts.config.iceServers = list.concat(peerOpts.config.iceServers);
     return list;
@@ -147,7 +156,7 @@
     const out = $('diag-out'); out.innerHTML = '<li>⏳ Tikrinama… (iki 10 s)</li>';
     await wifiReady();
     const turnGroups = peerOpts.config.iceServers.filter(s => [].concat(s.urls).some(u => /^turns?:/.test(u)));
-    const name = s => { const u = [].concat(s.urls)[0]; return u.replace(/^turns?:/, '').split(/[:?]/)[0]; };
+    const name = s => s.label || [].concat(s.urls)[0].replace(/^turns?:/, '').split(/[:?]/)[0];
     const [base, ...turns] = await Promise.all([
       gather([{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }]),
       ...turnGroups.map(g => gather([g], 9000)),
