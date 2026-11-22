@@ -13,15 +13,14 @@
   <!-- MENIU -->
   <section id="scr-menu" class="screen">
     <div class="logo"><div class="fan"><span>A<i>♠</i></span><span class="r">K<i>♥</i></span><span>Q<i>♣</i></span><span class="r">J<i>♦</i></span></div><h1>Durnius</h1></div>
-    <p class="sub">Kortų žaidimas 2–6 žaidėjams per WebRTC</p>
+    <p class="sub">Kortų žaidimas 2–6 žaidėjams</p>
     <label>Tavo vardas<input id="name" maxlength="16" placeholder="Vardas"></label>
+    <p id="no-server" class="sub warn" hidden>Žaidimo serveris dar neprijungtas – žr. server/README.md.</p>
     <div id="menu-host"><button id="btn-host" class="big">Sukurti kambarį</button></div>
     <div id="menu-join" hidden>
       <p>Prisijungti prie kambario <b id="join-code"></b></p>
       <button id="btn-join" class="big">Prisijungti</button>
-      <p id="join-help" class="sub warn" hidden>Nepavyko užmegzti ryšio. Dažniausiai taip būna, kai visi prisijungę prie to paties WiFi. Įjunk WiFi režimą (paspausk žemiau ir leisk mikrofoną – jis nebus naudojamas) ir paprašyk kambario kūrėjo padaryti tą patį, arba junkis per mobilius duomenis.</p>
-      <button class="btn-wifi ghost small"></button>
-      <button class="btn-diag ghost small">🔧 Ryšio diagnostika</button>
+      <p id="join-help" class="sub warn" hidden></p>
     </div>
     <details class="rules"><summary>Taisyklės</summary>
       <p>36 kortų malka (6–A). Kiekvienas gauna po 6 kortas, apatinė malkos korta nustato kozirį.
@@ -30,7 +29,6 @@
       Jei besiginantis nesumuša – ima visas kortas. Jei sumuša viską – „mušta“, ir jis puola toliau.
       Kas paskutinis lieka su kortomis – <b>durnius</b>.</p>
     </details>
-    <button class="btn-diag ghost small diag-link">🔧 Ryšio diagnostika</button>
     <p id="ver-menu" class="sub ver-menu"></p>
   </section>
 
@@ -41,24 +39,11 @@
       <div id="qr"></div>
       <p class="sub">Nuskenuok QR kodą telefonu, kad prisijungtum</p>
       <div class="row"><input id="share-url" readonly><button id="btn-copy">Kopijuoti</button></div>
-      <button class="btn-wifi ghost small"></button>
-      <button class="btn-diag ghost small">🔧 Ryšio diagnostika</button>
-      <p class="sub">Jei žaidėjai tame pačiame WiFi negali prisijungti – įjunk WiFi režimą. Naršyklė paprašys mikrofono leidimo: jis reikalingas tik tam, kad būtų matomas vietinis tinklo adresas, garsas nėra įrašomas.</p>
     </div>
     <h3>Žaidėjai</h3>
     <ul id="lobby-players"></ul>
     <button id="btn-start" class="big" hidden>Pradėti žaidimą</button>
     <p id="lobby-wait" class="sub" hidden>Laukiama, kol šeimininkas pradės…</p>
-  </section>
-
-  <!-- DIAGNOSTIKA -->
-  <section id="scr-diag" class="screen" hidden>
-    <h2>🔧 Ryšio diagnostika</h2>
-    <p class="sub">Paleisk abiejuose telefonuose (prisijungus prie to paties WiFi) ir atsiųsk ekrano nuotraukas arba nukopijuotą ataskaitą.</p>
-    <ul id="diag-out"></ul>
-    <button class="btn-wifi ghost small"></button>
-    <div class="row diag-btns"><button id="diag-again" class="ghost">Tikrinti dar kartą</button><button id="diag-copy">Kopijuoti ataskaitą</button></div>
-    <button id="diag-back" class="ghost">← Atgal</button>
   </section>
 
   <!-- ŽAIDIMAS -->
@@ -89,10 +74,9 @@
   <div id="modal" hidden><div class="box"><div id="modal-qr"></div><p id="modal-url" class="sub"></p><button id="modal-close">Uždaryti</button></div></div>
   <div id="toast"></div>
 </div>
-<script src="vendor/peerjs.min.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script src="version.js"></script>
-<script src="turn.js"></script>
+<script src="config.js"></script>
 <script src="game.js"></script>
 <script src="app.js"></script>
 </body>

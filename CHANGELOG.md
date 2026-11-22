@@ -3,6 +3,12 @@
 Versijos numeruojamos pagal [SemVer](https://semver.org/lang/lt/): `DIDELĖ.MAŽA.PATAISA`.
 Žaidėjai su skirtingomis versijomis kartu žaisti negali – žaidimas paprašys perkrauti puslapį.
 
+## 2.0.0 – 2026-11-22
+- Ryšys perdarytas iš WebRTC į WebSocket per Cloudflare Worker su Durable Objects (vienas kambarys = vienas objektas). Veikia bet kuriame tinkle: tame pačiame WiFi, su VPN, svečių tinkluose.
+- Automatinis prisijungimas iš naujo, kai nutrūksta ryšys (žaidėjams ir kambario kūrėjui), „ping“ kas 25 s.
+- Pašalinta: PeerJS, TURN serveriai, WiFi režimas, ryšio diagnostika.
+- Serveris (`server/`) įkeliamas per GitHub Actions; adresas nurodomas `config.js`.
+
 ## 1.5.0 – 2026-11-22
 - Pridėti nemokami TURN serveriai be registracijos: freeturn.net ir Elixir WebRTC Rel (laikini prisijungimo duomenys).
 - Diagnostikoje TURN serveriai rodomi pagal pavadinimą.

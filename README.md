@@ -1,6 +1,6 @@
 # 🃏 Durnius
 
-Kortų žaidimas „Durnius“ (Durak) 2–6 žaidėjams naršyklėje. Žaidėjai jungiasi tiesiogiai per **WebRTC** (PeerJS), serverio nereikia – tik statinis puslapis GitHub Pages.
+Kortų žaidimas „Durnius“ (Durak) 2–6 žaidėjams naršyklėje. Puslapis talpinamas GitHub Pages, o žaidėjai susijungia per mažą **WebSocket** serverį Cloudflare (Worker + Durable Objects, nemokamas planas).
 
 ## Kaip žaisti
 1. Atidaryk puslapį, įvesk vardą ir spausk **Sukurti kambarį**.
@@ -16,10 +16,10 @@ Kambario šeimininko naršyklė laiko žaidimo būseną – jos neuždaryk parti
 - Paskutinis likęs su kortomis – **durnius**.
 
 ## Techniškai
-- `game.js` – žaidimo logika, `app.js` – UI ir tinklas, `vendor/` – PeerJS 1.5.4 ir qrcode-generator 1.4.4 (MIT).
-- **Tas pats WiFi:** naršyklės slepia vietinius IP adresus, o daugelis maršrutizatorių neleidžia telefonams susijungti per išorinį adresą. Mygtukas „WiFi režimas“ paprašo mikrofono leidimo (srautas iškart sustabdomas) – tada naršyklė atskleidžia vietinį IP ir ryšys užmezgamas tiesiogiai. Taip pat pridėti atsarginiai TURN serveriai.
-- Signalizacijai naudojamas nemokamas PeerJS debesies serveris; ryšys tarp žaidėjų – tiesioginis WebRTC (STUN). Kai kuriuose griežtuose tinkluose (pvz. mobilusis internetas su simetriniu NAT) ryšys gali nepavykti.
-- Lokaliam testavimui: `?peerhost=127.0.0.1&peerport=9000` su savo `peerjs` serveriu.
+- `game.js` – žaidimo logika (veikia kambario kūrėjo naršyklėje), `app.js` – ekranas ir ryšys, `vendor/qrcode.js` – qrcode-generator 1.4.4 (MIT).
+- `server/` – Cloudflare Worker, kuris tik persiunčia žinutes kambario viduje. Įkėlimo instrukcija: [server/README.md](server/README.md).
+- `config.js` – serverio adresas. Testavimui galima nurodyti nuorodoje: `?server=http://127.0.0.1:8787`.
+- Nutrūkus ryšiui, žaidėjai ir kambario kūrėjas prisijungia iš naujo automatiškai; partija tęsiasi.
 
 ## Versijos
 - Versija nurodyta `version.js` (SemVer), pakeitimai aprašomi `CHANGELOG.md`.

@@ -1,7 +1,6 @@
 (() => {
   const $ = id => document.getElementById(id);
   const D = window.Durak;
-  const PREFIX = 'durius-v1-';
   const AV = window.APP_VERSION || { version: '?', build: 'dev', date: '' };
   const VER = AV.version + (AV.build && AV.build !== 'dev' ? '+' + AV.build : '');
   document.getElementById('ver').textContent = 'v' + AV.version;
@@ -11,15 +10,13 @@
     get(k, s) { try { return (s ? sessionStorage : localStorage).getItem(k); } catch (e) { return null; } },
     set(k, v, s) { try { (s ? sessionStorage : localStorage).setItem(k, v); } catch (e) {} },
   };
-  const diagLog = [];
-  function dlog(m) { diagLog.push(new Date().toLocaleTimeString() + ' ' + m); if (diagLog.length > 60) diagLog.shift(); }
   let myPid = store.get('durius-pid', true);
-  if (!myPid) { myPid = Math.random().toString(36).slice(2, 10); store.set('durius-pid', myPid, true); }
+  if (!myPid) { myPid = (Math.random().toString(36).slice(2, 10) + '00000000').slice(0, 8); store.set('durius-pid', myPid, true); }
 
   const params = new URLSearchParams(location.search);
   const joinRoom = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  let isHost = false, peer = null, room = '', hostConn = null;
+  let isHost = false, room = '';
   let view = null, selected = null;
   // host-only
   let lobby = []; // {pid,name,conn,online}
@@ -41,194 +38,114 @@
     if (!n) { toast('Įvesk vardą'); $('name').focus(); return null; }
     store.set('durius-name', n); return n;
   }
+  const SERVER = (params.get('server') || window.DURNIUS_SERVER || '').trim().replace(/\/+$/, '');
   const shareUrl = () => location.origin + location.pathname + '?room=' + room +
-    (params.get('peerhost') ? '&peerhost=' + params.get('peerhost') + '&peerport=' + (params.get('peerport') || 9000) : '');
+    (params.get('server') ? '&server=' + encodeURIComponent(params.get('server')) : '');
   function qrSvg(text) {
     const q = qrcode(0, 'M'); q.addData(text); q.make();
     return q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   }
-  const peerOpts = {
-    debug: 1,
-    config: {
-      iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
-        { label: 'freeturn.net', urls: ['turn:freeturn.net:3478', 'turn:freeturn.net:3478?transport=tcp', 'turns:freeturn.tel:5349'], username: 'free', credential: 'free' },
-        { label: 'PeerJS', urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
-        { label: 'Open Relay', urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
-      ],
-    },
-  };
-  if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost'), port: +params.get('peerport') || 9000, path: '/', secure: false });
 
-  // ---------------- SAME-WIFI MODE ----------------
-  // Browsers hide local IP addresses (mDNS) unless the page has microphone permission.
-  // On many home routers phones on the same Wi-Fi can then only reach each other via a relay.
-  // Granting mic permission once (stream stopped immediately) exposes local IPs so a direct LAN connection works.
-  let wifiOn = store.get('durius-wifi') === '1';
-  async function enableWifi(silent) {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      s.getTracks().forEach(t => t.stop());
-      wifiOn = true; store.set('durius-wifi', '1'); updWifi();
-      if (!silent) toast('WiFi režimas įjungtas ✔');
-      return true;
-    } catch (e) {
-      if (!silent) toast('Leidimas nesuteiktas – WiFi režimas neįjungtas');
-      return false;
-    }
-  }
-  function updWifi() {
-    document.querySelectorAll('.btn-wifi').forEach(b => { b.textContent = wifiOn ? '📶 WiFi režimas įjungtas' : '📶 Tame pačiame WiFi? Įjunk WiFi režimą'; b.disabled = wifiOn; });
-  }
-  document.querySelectorAll('.btn-wifi').forEach(b => b.onclick = () => enableWifi(false));
-  updWifi();
-  let extraIce = null;
-  async function loadTurn() {
-    if (extraIce) return extraIce;
-    const tc = window.TURN_CONFIG || {};
-    let list = Array.isArray(tc.iceServers) ? tc.iceServers.slice() : [];
-    if (tc.meteredApp && tc.meteredKey) {
-      try {
-        const r = await fetch(`https://${tc.meteredApp}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(tc.meteredKey)}`);
-        if (r.ok) list = list.concat(await r.json());
-        else dlog('Metered TURN: HTTP ' + r.status);
-      } catch (e) { dlog('Metered TURN: ' + e.message); }
-    }
-    // Elixir WebRTC "Rel" public test TURN: short-lived credentials, no signup
-    try {
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
-      const r = await fetch('https://turn.elixir-webrtc.org/?service=turn&username=durnius' + myPid, { method: 'POST', signal: ctl.signal });
-      clearTimeout(t);
-      if (r.ok) { const j = await r.json(); list.push({ label: 'Elixir Rel', urls: j.uris, username: j.username, credential: j.password }); }
-      else dlog('Elixir Rel TURN: HTTP ' + r.status);
-    } catch (e) { dlog('Elixir Rel TURN: ' + (e.name === 'AbortError' ? 'laikas baigėsi' : e.message)); }
-    extraIce = list;
-    if (list.length) peerOpts.config.iceServers = list.concat(peerOpts.config.iceServers);
-    return list;
-  }
-  const wifiReady = () => Promise.all([wifiOn ? enableWifi(true) : null, loadTurn()]);
-
-  // ---------------- DIAGNOSTICS ----------------
-  function watchIce(conn, who) {
-    let tries = 0;
-    const iv = setInterval(() => {
-      const pc = conn.peerConnection;
-      if (!pc) { if (++tries > 100) clearInterval(iv); return; }
-      clearInterval(iv);
-      const types = {};
-      pc.addEventListener('icecandidate', e => { if (e.candidate) { const t = e.candidate.type || '?'; types[t] = (types[t] || 0) + 1; } });
-      pc.addEventListener('iceconnectionstatechange', async () => {
-        const st = pc.iceConnectionState;
-        dlog(`ICE (${who}): ${st}` + (st === 'checking' ? ' · mano kandidatai ' + JSON.stringify(types) : ''));
-        if (st === 'connected' || st === 'completed') {
-          try {
-            const stats = await pc.getStats(); let pair = null; const byId = {};
-            stats.forEach(r => { byId[r.id] = r; });
-            stats.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = byId[r.selectedCandidatePairId]; });
-            if (!pair) stats.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
-            if (pair) { const l = byId[pair.localCandidateId], rm = byId[pair.remoteCandidateId]; dlog(`Ryšys per: ${l && l.candidateType} ↔ ${rm && rm.candidateType}`); }
-          } catch (e) {}
-        }
-        if (st === 'failed') dlog(`ICE (${who}) nepavyko · mano kandidatai ${JSON.stringify(types)}`);
-      });
-    }, 50);
-  }
-
-  function gather(iceServers, ms = 7000) {
-    return new Promise(res => {
-      let pc; const out = [];
-      try { pc = new RTCPeerConnection({ iceServers }); } catch (e) { res(out); return; }
-      const done = () => { try { pc.close(); } catch (e) {} res(out); };
-      pc.createDataChannel('d');
-      pc.onicecandidate = e => {
-        if (!e.candidate) return done();
-        const c = e.candidate, parts = c.candidate.split(' ');
-        out.push({ type: c.type || parts[7], addr: c.address || parts[4], proto: c.protocol || parts[2], url: e.url || '' });
+  // ---------------- SERVER LINK (WebSocket with auto-reconnect) ----------------
+  // Close codes from the server: 4000 replaced by a newer connection, 4001 refused, 4002 kicked by host.
+  function link(role, h) {
+    let ws = null, stopped = false, attempt = 0, everOpen = false, pingT = null;
+    const base = SERVER.replace(/^http/, 'ws') + '/room/' + room + '?role=' + role + '&pid=' + myPid;
+    function connect() {
+      const url = base + (everOpen && role === 'guest' ? '&wait=1' : '');
+      try { ws = new WebSocket(url); } catch (e) { h.fatal({ m: 'Netinkamas serverio adresas' }); return; }
+      ws.onopen = () => {
+        attempt = 0; everOpen = true;
+        clearInterval(pingT); pingT = setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 25000);
+        h.open();
       };
-      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(done);
-      setTimeout(done, ms);
-    });
+      ws.onmessage = e => {
+        if (e.data === 'pong') return;
+        let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+        if (m.t === 'err') { stopped = true; h.fatal(m); return; }
+        h.msg(m);
+      };
+      ws.onclose = e => {
+        clearInterval(pingT);
+        if (stopped) return;
+        if (e.code === 4000) { stopped = true; h.fatal({ m: 'Žaidimas atidarytas kitame lange' }); return; }
+        if (e.code === 4002) { stopped = true; h.fatal({ m: 'Šeimininkas tave atjungė' }); return; }
+        attempt++;
+        if (!everOpen && attempt >= 4) { stopped = true; h.fatal({ m: 'Nepavyko pasiekti žaidimo serverio. Patikrink interneto ryšį.' }); return; }
+        h.down(attempt);
+        setTimeout(() => { if (!stopped) connect(); }, Math.min(8000, 400 * 2 ** attempt));
+      };
+    }
+    connect();
+    // reconnect right away when the phone comes back online or the tab becomes visible
+    const kick = () => { if (!stopped && ws && ws.readyState === 3) { attempt = 0; connect(); } };
+    addEventListener('online', kick);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+    return {
+      send(o) { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(o)); return true; } return false; },
+      close() { stopped = true; clearInterval(pingT); try { ws && ws.close(1000); } catch (e) {} },
+      get open() { return !!ws && ws.readyState === 1; },
+    };
   }
-
-  let diagText = '';
-  async function runDiag() {
-    show('scr-diag');
-    const out = $('diag-out'); out.innerHTML = '<li>⏳ Tikrinama… (iki 10 s)</li>';
-    await wifiReady();
-    const turnGroups = peerOpts.config.iceServers.filter(s => [].concat(s.urls).some(u => /^turns?:/.test(u)));
-    const name = s => s.label || [].concat(s.urls)[0].replace(/^turns?:/, '').split(/[:?]/)[0];
-    const [base, ...turns] = await Promise.all([
-      gather([{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }]),
-      ...turnGroups.map(g => gather([g], 9000)),
-    ]);
-    const host = base.filter(c => c.type === 'host'), srflx = base.filter(c => c.type === 'srflx');
-    const hidden = host.length && host.every(c => /\.local$/.test(c.addr));
-    const priv = host.filter(c => !/\.local$/.test(c.addr)).map(c => c.addr);
-    const rows = [];
-    const row = (ok, t, d) => rows.push({ ok, t, d });
-    row(!!host.length && !hidden, 'Vietinis adresas', !host.length ? 'nerastas' : hidden ? 'paslėptas (.local) – įjunk WiFi režimą' : [...new Set(priv)].join(', '));
-    row(!!srflx.length, 'Viešas adresas (STUN)', srflx.length ? [...new Set(srflx.map(c => c.addr))].join(', ') : 'nepavyko');
-    let anyTurn = false;
-    turnGroups.forEach((g, i) => {
-      const rel = turns[i].filter(c => c.type === 'relay');
-      anyTurn = anyTurn || !!rel.length;
-      row(!!rel.length, 'TURN ' + name(g), rel.length ? 'veikia (' + [...new Set(rel.map(c => c.proto))].join('/') + ')' : 'neatsako');
-    });
-    row(wifiOn, 'WiFi režimas', wifiOn ? 'įjungtas' : 'išjungtas');
-    let verdict;
-    if (!anyTurn) verdict = 'Nė vienas TURN serveris neveikia. Jei WiFi neleidžia įrenginiams matyti vienas kito, prisijungti bus galima tik su veikiančiu TURN serveriu (žr. turn.js).';
-    else verdict = 'Bent vienas TURN serveris veikia – ryšys turėtų pavykti net ir esant griežtam WiFi.';
-    if (hidden) verdict = 'Vietinis adresas paslėptas – paspausk „WiFi režimas“ ir leisk mikrofoną. ' + verdict;
-    out.innerHTML = rows.map(r => `<li><span>${r.ok ? '✅' : '❌'}</span><b>${esc(r.t)}</b><em>${esc(r.d)}</em></li>`).join('') +
-      `<li class="verdict">${esc(verdict)}</li>` +
-      (diagLog.length ? `<li class="log"><b>Paskutiniai ryšio įvykiai</b><pre>${esc(diagLog.slice(-15).join('\n'))}</pre></li>` : '');
-    diagText = `Durnius ${VER} diagnostika\n${navigator.userAgent}\n` + rows.map(r => `${r.ok ? 'OK ' : 'NE '} ${r.t}: ${r.d}`).join('\n') + '\n' + diagLog.slice(-15).join('\n');
+  if (!SERVER) $('no-server').hidden = false;
+  function needServer() {
+    if (SERVER) return true;
+    toast('Žaidimo serveris nesukonfigūruotas (config.js)');
+    return false;
   }
-  let diagBack = 'scr-menu';
-  document.querySelectorAll('.btn-diag').forEach(b => b.onclick = () => {
-    diagBack = [...document.querySelectorAll('.screen')].find(s => !s.hidden)?.id || 'scr-menu';
-    runDiag();
-  });
-  $('diag-back').onclick = () => show(diagBack);
-  $('diag-again').onclick = runDiag;
-  $('diag-copy').onclick = () => (navigator.clipboard ? navigator.clipboard.writeText(diagText) : Promise.reject()).then(() => toast('Ataskaita nukopijuota'), () => toast('Nepavyko nukopijuoti'));
 
   // ---------------- HOST ----------------
+  let srv = null;
+  const guests = new Map(); // server id -> pseudo connection used by hostOnMsg/broadcast
+  function guestConn(id) {
+    let c = guests.get(id);
+    if (!c) {
+      c = { id, open: false, send: m => srv && srv.send({ t: 'to', id, m }), close: () => srv && srv.send({ t: 'kick', id }) };
+      guests.set(id, c);
+    }
+    return c;
+  }
   function startHost(name) {
+    if (!needServer()) { $('btn-host').disabled = false; return; }
     isHost = true;
     room = Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
     net('Jungiamasi…', true);
-    wifiReady().then(() => {
-    peer = new Peer(PREFIX + room, peerOpts);
-    peer.on('open', () => {
-      net('Kambarys atidarytas');
-      lobby = [{ pid: myPid, name, conn: null, online: true }];
-      
-      $('room-code').textContent = room;
-      $('qr').innerHTML = qrSvg(shareUrl());
-      $('share-url').value = shareUrl();
-      $('host-share').hidden = false; $('btn-start').hidden = false;
-      show('scr-lobby'); renderLobby();
-    });
-    peer.on('error', e => {
-      if (e.type === 'unavailable-id') { peer.destroy(); startHost(name); return; }
-      net('Klaida: ' + e.type); toast('Tinklo klaida: ' + e.type);
-    });
-    peer.on('disconnected', () => { net('Atsijungta nuo serverio, jungiamasi…'); setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); });
-    peer.on('connection', conn => {
-      watchIce(conn, 'svečias');
-      conn.on('data', msg => hostOnMsg(conn, msg));
-      conn.on('close', () => {
-        const p = lobby.find(p => p.conn === conn);
-        if (p) { p.online = false; p.conn = null; toast(p.name + ' atsijungė'); broadcast(); }
-      });
-    });
+    let first = true;
+    srv = link('host', {
+      open() {
+        if (first) {
+          first = false;
+          net('Kambarys atidarytas');
+          lobby = [{ pid: myPid, name, conn: null, online: true }];
+          $('room-code').textContent = room;
+          $('qr').innerHTML = qrSvg(shareUrl());
+          $('share-url').value = shareUrl();
+          $('host-share').hidden = false; $('btn-start').hidden = false;
+          show('scr-lobby'); renderLobby();
+        } else { net('Ryšys atkurtas'); toast('Ryšys su serveriu atkurtas'); }
+      },
+      msg(m) {
+        if (m.t === 'join') guestConn(m.id).open = true;
+        else if (m.t === 'from') { const c = guestConn(m.id); c.open = true; hostOnMsg(c, m.m); }
+        else if (m.t === 'leave') {
+          const c = guests.get(m.id); if (!c) return;
+          c.open = false;
+          const p = lobby.find(p => p.conn === c);
+          if (p && p.online) { p.online = false; toast(p.name + ' atsijungė'); broadcast(); }
+        }
+      },
+      fatal(m) {
+        if (m.code === 'taken' && first) { startHost(name); return; }
+        net(m.m, true); toast(m.m); $('btn-host').disabled = false;
+      },
+      down() { net('Ryšys su serveriu nutrūko, jungiamasi…', true); guests.forEach(c => { c.open = false; }); },
     });
   }
 
   function hostOnMsg(conn, msg) {
     if (!msg || typeof msg !== 'object') return;
     if (msg.t === 'hello') {
+      msg.pid = conn.id; // the server-verified id wins over whatever the client claims
       if (msg.ver !== VER) {
         conn.send({ t: 'err', fatal: true, m: `Skirtingos žaidimo versijos: kambario v${VER}, tavo v${msg.ver || 'sena'}. Perkrauk puslapį abiejuose įrenginiuose.` });
         setTimeout(() => conn.close(), 800); return;
@@ -239,8 +156,8 @@
         if (p.conn && p.conn !== conn) try { p.conn.close(); } catch (e) {}
         p.conn = conn; p.online = true; if (!game) p.name = name;
       } else {
-        if (game && !game.over) { conn.send({ t: 'err', m: 'Žaidimas jau vyksta' }); setTimeout(() => conn.close(), 500); return; }
-        if (lobby.length >= 6) { conn.send({ t: 'err', m: 'Kambarys pilnas (6)' }); setTimeout(() => conn.close(), 500); return; }
+        if (game && !game.over) { conn.send({ t: 'err', fatal: true, m: 'Žaidimas jau vyksta – palauk, kol partija baigsis' }); setTimeout(() => conn.close(), 500); return; }
+        if (lobby.length >= 6) { conn.send({ t: 'err', fatal: true, m: 'Kambarys pilnas (6 žaidėjai)' }); setTimeout(() => conn.close(), 500); return; }
         p = { pid: String(msg.pid), name, conn, online: true };
         lobby.push(p); toast(name + ' prisijungė');
       }
@@ -290,47 +207,27 @@
 
   // ---------------- CLIENT ----------------
   function startClient(name) {
+    if (!needServer()) return;
     isHost = false; room = joinRoom;
     net('Jungiamasi…', true);
-    $('btn-join').disabled = true;
-    if (peer && !peer.destroyed) peer.destroy();
-    wifiReady().then(() => clientPeer(name));
-  }
-  function clientPeer(name) {
-    peer = new Peer(peerOpts);
-    let tries = 0;
-    const connect = () => {
-      const c = hostConn = peer.connect(PREFIX + room, { reliable: true });
-      dlog('Jungiamasi prie kambario ' + room + ' (bandymas ' + (tries + 1) + ')');
-      watchIce(c, 'šeimininkas');
-      const timer = setTimeout(() => {
-        if (c.open || c.stale) return;
-        c.stale = true; try { c.close(); } catch (e) {}
-        tries++;
-        if (tries < 3) connect();
-        else failJoin('Nepavyko prisijungti. Jei esate tame pačiame WiFi – įjunk WiFi režimą abiejuose telefonuose arba junkis per mobilius duomenis', true);
-      }, 12000);
-      c.on('open', () => {
-        clearTimeout(timer); c.opened = true;
-        net('Prisijungta'); c.send({ t: 'hello', pid: myPid, name, ver: VER });
-      });
-      c.on('data', clientOnMsg);
-      c.on('close', () => {
-        if (c.stale) return;
-        clearTimeout(timer); c.stale = true;
-        if (c.opened) { net('Ryšys nutrūko'); failJoin('Ryšys su šeimininku nutrūko – bandyk prisijungti iš naujo'); }
-        else failJoin('Nepavyko užmegzti ryšio', true);
-      });
-    };
-    peer.on('open', connect);
-    peer.on('error', e => {
-      if (e.type === 'peer-unavailable') failJoin('Kambarys ' + room + ' nerastas');
-      else { net('Klaida: ' + e.type); toast('Tinklo klaida: ' + e.type); }
+    $('btn-join').disabled = true; $('join-help').hidden = true;
+    if (srv) srv.close();
+    const hello = () => srv.send({ t: 'hello', pid: myPid, name, ver: VER });
+    srv = link('guest', {
+      open() { net('Prisijungta'); hello(); },
+      msg(m) {
+        if (m.t === 'msg') clientOnMsg(m.m);
+        else if (m.t === 'host-left') { net('Šeimininkas atsijungė, laukiama…', true); toast('Šeimininkas atsijungė – laukiame, kol grįš'); }
+        else if (m.t === 'host-back') { net('Šeimininkas grįžo'); hello(); }
+      },
+      fatal(m) { failJoin(m.code === 'no-room' ? 'Kambarys ' + room + ' nerastas. Gal šeimininkas jį jau uždarė?' : m.m); },
+      down() { net('Ryšys nutrūko, jungiamasi iš naujo…', true); },
     });
   }
-  function failJoin(m, conn) {
+  function failJoin(m) {
     toast(m);
-    $('join-help').hidden = !conn; $('btn-join').disabled = false; $('btn-join').textContent = 'Prisijungti iš naujo';
+    $('join-help').textContent = m; $('join-help').hidden = false;
+    $('btn-join').disabled = false; $('btn-join').textContent = 'Prisijungti iš naujo';
     show('scr-menu'); $('menu-join').hidden = false;
   }
   function clientOnMsg(msg) {
@@ -339,12 +236,11 @@
       view = null; $('room-code').textContent = msg.room;
       lobby = msg.players; show('scr-lobby'); $('lobby-wait').hidden = false; renderLobby();
     } else if (msg.t === 'state') onState(msg.v);
-    else if (msg.t === 'err') { if (msg.fatal) { hostConn.stale = true; failJoin(msg.m); $('join-help').hidden = false; $('join-help').textContent = msg.m; } else toast(msg.m); }
+    else if (msg.t === 'err') { if (msg.fatal) { srv && srv.close(); failJoin(msg.m); } else toast(msg.m); }
   }
   function send(a) {
     if (isHost) hostAction(myPid, a, null);
-    else if (hostConn && hostConn.open) hostConn.send({ t: 'act', a });
-    else toast('Nėra ryšio');
+    else if (!srv || !srv.send({ t: 'act', a })) toast('Nėra ryšio – jungiamasi iš naujo');
   }
 
   // ---------------- SOUND ----------------
