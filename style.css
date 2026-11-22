@@ -183,4 +183,14 @@ body.my-turn #glow{opacity:1;animation:glow 1.6s ease-in-out infinite}
 .btn-wifi{align-self:center;margin-top:8px}
 #menu-join{display:flex;flex-direction:column}
 #ver{margin-right:auto;font-size:11px;opacity:.7}
-.ver-menu{margin-top:auto;padding-top:16px;font-size:12px;opacity:.7}
+.ver-menu{padding-top:6px;font-size:12px;opacity:.7}
+#diag-out{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+#diag-out li{background:rgba(0,0,0,.25);border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:24px 1fr;gap:2px 8px;font-size:14px}
+#diag-out li b{font-weight:700}
+#diag-out li em{grid-column:2;font-style:normal;color:var(--muted);word-break:break-all}
+#diag-out li.verdict{display:block;background:rgba(247,201,72,.15);border:1px solid rgba(247,201,72,.4)}
+#diag-out li.log{display:block}
+#diag-out pre{margin:6px 0 0;font-size:11px;white-space:pre-wrap;word-break:break-all;color:var(--muted)}
+.diag-btns button{flex:1}
+.btn-diag{align-self:center;margin-top:6px}
+.diag-link{margin-top:auto}

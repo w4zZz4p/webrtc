@@ -3,6 +3,11 @@
 Versijos numeruojamos pagal [SemVer](https://semver.org/lang/lt/): `DIDELĖ.MAŽA.PATAISA`.
 Žaidėjai su skirtingomis versijomis kartu žaisti negali – žaidimas paprašys perkrauti puslapį.
 
+## 1.4.0 – 2026-11-22
+- Ryšio diagnostika: tikrina vietinį ir viešą adresą, kiekvieną TURN serverį, rodo paskutinius ryšio įvykius; ataskaitą galima nukopijuoti.
+- Galima prijungti savo TURN serverį (Metered API raktas arba statiniai serveriai) faile `turn.js`.
+- Ryšio įvykių žurnalas (ICE būsenos, per kokį kanalą užmegztas ryšys).
+
 ## 1.3.0 – 2026-11-22
 - Žaidimo versija rodoma viršuje kairėje ir pradžios ekrane.
 - Prisijungiant tikrinama, ar žaidėjo ir šeimininko versijos sutampa.

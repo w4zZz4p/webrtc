@@ -11,6 +11,8 @@
     get(k, s) { try { return (s ? sessionStorage : localStorage).getItem(k); } catch (e) { return null; } },
     set(k, v, s) { try { (s ? sessionStorage : localStorage).setItem(k, v); } catch (e) {} },
   };
+  const diagLog = [];
+  function dlog(m) { diagLog.push(new Date().toLocaleTimeString() + ' ' + m); if (diagLog.length > 60) diagLog.shift(); }
   let myPid = store.get('durius-pid', true);
   if (!myPid) { myPid = Math.random().toString(36).slice(2, 10); store.set('durius-pid', myPid, true); }
 
@@ -79,7 +81,108 @@
   }
   document.querySelectorAll('.btn-wifi').forEach(b => b.onclick = () => enableWifi(false));
   updWifi();
-  const wifiReady = () => wifiOn ? enableWifi(true) : Promise.resolve();
+  let extraIce = null;
+  async function loadTurn() {
+    if (extraIce) return extraIce;
+    const tc = window.TURN_CONFIG || {};
+    let list = Array.isArray(tc.iceServers) ? tc.iceServers.slice() : [];
+    if (tc.meteredApp && tc.meteredKey) {
+      try {
+        const r = await fetch(`https://${tc.meteredApp}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(tc.meteredKey)}`);
+        if (r.ok) list = list.concat(await r.json());
+        else dlog('Metered TURN: HTTP ' + r.status);
+      } catch (e) { dlog('Metered TURN: ' + e.message); }
+    }
+    extraIce = list;
+    if (list.length) peerOpts.config.iceServers = list.concat(peerOpts.config.iceServers);
+    return list;
+  }
+  const wifiReady = () => Promise.all([wifiOn ? enableWifi(true) : null, loadTurn()]);
+
+  // ---------------- DIAGNOSTICS ----------------
+  function watchIce(conn, who) {
+    let tries = 0;
+    const iv = setInterval(() => {
+      const pc = conn.peerConnection;
+      if (!pc) { if (++tries > 100) clearInterval(iv); return; }
+      clearInterval(iv);
+      const types = {};
+      pc.addEventListener('icecandidate', e => { if (e.candidate) { const t = e.candidate.type || '?'; types[t] = (types[t] || 0) + 1; } });
+      pc.addEventListener('iceconnectionstatechange', async () => {
+        const st = pc.iceConnectionState;
+        dlog(`ICE (${who}): ${st}` + (st === 'checking' ? ' · mano kandidatai ' + JSON.stringify(types) : ''));
+        if (st === 'connected' || st === 'completed') {
+          try {
+            const stats = await pc.getStats(); let pair = null; const byId = {};
+            stats.forEach(r => { byId[r.id] = r; });
+            stats.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = byId[r.selectedCandidatePairId]; });
+            if (!pair) stats.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+            if (pair) { const l = byId[pair.localCandidateId], rm = byId[pair.remoteCandidateId]; dlog(`Ryšys per: ${l && l.candidateType} ↔ ${rm && rm.candidateType}`); }
+          } catch (e) {}
+        }
+        if (st === 'failed') dlog(`ICE (${who}) nepavyko · mano kandidatai ${JSON.stringify(types)}`);
+      });
+    }, 50);
+  }
+
+  function gather(iceServers, ms = 7000) {
+    return new Promise(res => {
+      let pc; const out = [];
+      try { pc = new RTCPeerConnection({ iceServers }); } catch (e) { res(out); return; }
+      const done = () => { try { pc.close(); } catch (e) {} res(out); };
+      pc.createDataChannel('d');
+      pc.onicecandidate = e => {
+        if (!e.candidate) return done();
+        const c = e.candidate, parts = c.candidate.split(' ');
+        out.push({ type: c.type || parts[7], addr: c.address || parts[4], proto: c.protocol || parts[2], url: e.url || '' });
+      };
+      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(done);
+      setTimeout(done, ms);
+    });
+  }
+
+  let diagText = '';
+  async function runDiag() {
+    show('scr-diag');
+    const out = $('diag-out'); out.innerHTML = '<li>⏳ Tikrinama… (iki 10 s)</li>';
+    await wifiReady();
+    const turnGroups = peerOpts.config.iceServers.filter(s => [].concat(s.urls).some(u => /^turns?:/.test(u)));
+    const name = s => { const u = [].concat(s.urls)[0]; return u.replace(/^turns?:/, '').split(/[:?]/)[0]; };
+    const [base, ...turns] = await Promise.all([
+      gather([{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }]),
+      ...turnGroups.map(g => gather([g], 9000)),
+    ]);
+    const host = base.filter(c => c.type === 'host'), srflx = base.filter(c => c.type === 'srflx');
+    const hidden = host.length && host.every(c => /\.local$/.test(c.addr));
+    const priv = host.filter(c => !/\.local$/.test(c.addr)).map(c => c.addr);
+    const rows = [];
+    const row = (ok, t, d) => rows.push({ ok, t, d });
+    row(!!host.length && !hidden, 'Vietinis adresas', !host.length ? 'nerastas' : hidden ? 'paslėptas (.local) – įjunk WiFi režimą' : [...new Set(priv)].join(', '));
+    row(!!srflx.length, 'Viešas adresas (STUN)', srflx.length ? [...new Set(srflx.map(c => c.addr))].join(', ') : 'nepavyko');
+    let anyTurn = false;
+    turnGroups.forEach((g, i) => {
+      const rel = turns[i].filter(c => c.type === 'relay');
+      anyTurn = anyTurn || !!rel.length;
+      row(!!rel.length, 'TURN ' + name(g), rel.length ? 'veikia (' + [...new Set(rel.map(c => c.proto))].join('/') + ')' : 'neatsako');
+    });
+    row(wifiOn, 'WiFi režimas', wifiOn ? 'įjungtas' : 'išjungtas');
+    let verdict;
+    if (!anyTurn) verdict = 'Nė vienas TURN serveris neveikia. Jei WiFi neleidžia įrenginiams matyti vienas kito, prisijungti bus galima tik su veikiančiu TURN serveriu (žr. turn.js).';
+    else verdict = 'Bent vienas TURN serveris veikia – ryšys turėtų pavykti net ir esant griežtam WiFi.';
+    if (hidden) verdict = 'Vietinis adresas paslėptas – paspausk „WiFi režimas“ ir leisk mikrofoną. ' + verdict;
+    out.innerHTML = rows.map(r => `<li><span>${r.ok ? '✅' : '❌'}</span><b>${esc(r.t)}</b><em>${esc(r.d)}</em></li>`).join('') +
+      `<li class="verdict">${esc(verdict)}</li>` +
+      (diagLog.length ? `<li class="log"><b>Paskutiniai ryšio įvykiai</b><pre>${esc(diagLog.slice(-15).join('\n'))}</pre></li>` : '');
+    diagText = `Durnius ${VER} diagnostika\n${navigator.userAgent}\n` + rows.map(r => `${r.ok ? 'OK ' : 'NE '} ${r.t}: ${r.d}`).join('\n') + '\n' + diagLog.slice(-15).join('\n');
+  }
+  let diagBack = 'scr-menu';
+  document.querySelectorAll('.btn-diag').forEach(b => b.onclick = () => {
+    diagBack = [...document.querySelectorAll('.screen')].find(s => !s.hidden)?.id || 'scr-menu';
+    runDiag();
+  });
+  $('diag-back').onclick = () => show(diagBack);
+  $('diag-again').onclick = runDiag;
+  $('diag-copy').onclick = () => (navigator.clipboard ? navigator.clipboard.writeText(diagText) : Promise.reject()).then(() => toast('Ataskaita nukopijuota'), () => toast('Nepavyko nukopijuoti'));
 
   // ---------------- HOST ----------------
   function startHost(name) {
@@ -104,6 +207,7 @@
     });
     peer.on('disconnected', () => { net('Atsijungta nuo serverio, jungiamasi…'); setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); });
     peer.on('connection', conn => {
+      watchIce(conn, 'svečias');
       conn.on('data', msg => hostOnMsg(conn, msg));
       conn.on('close', () => {
         const p = lobby.find(p => p.conn === conn);
@@ -188,6 +292,8 @@
     let tries = 0;
     const connect = () => {
       const c = hostConn = peer.connect(PREFIX + room, { reliable: true });
+      dlog('Jungiamasi prie kambario ' + room + ' (bandymas ' + (tries + 1) + ')');
+      watchIce(c, 'šeimininkas');
       const timer = setTimeout(() => {
         if (c.open || c.stale) return;
         c.stale = true; try { c.close(); } catch (e) {}

@@ -23,7 +23,7 @@ jobs:
           enablement: true
       - name: Build site with version info
         run: |
-          mkdir _site && cp -r index.html style.css version.js game.js app.js vendor .nojekyll _site/
+          mkdir _site && cp -r index.html style.css version.js turn.js game.js app.js vendor .nojekyll _site/
           SHA="${GITHUB_SHA::7}"
           sed -i "s/build: 'dev'/build: '$SHA'/; s/date: ''/date: '$(date -u +%Y-%m-%d)'/" _site/version.js
           sed -i -E "s/(src=\"[^\"]+\.js)\"/\1?v=$SHA\"/g; s/(href=\"style\.css)\"/\1?v=$SHA\"/" _site/index.html
